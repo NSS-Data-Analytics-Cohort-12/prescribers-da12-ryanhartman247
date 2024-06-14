@@ -50,6 +50,18 @@
 -- ORDER BY 2 DESC
 
 --     c. **Challenge Question:** Are there any specialties that appear in the prescriber table that have no associated prescriptions in the prescription table?
+
+-- SELECT
+-- 	prescriber.specialty_description
+-- FROM prescriber
+-- FULL OUTER JOIN prescription
+-- 	ON prescriber.npi = prescription.npi
+-- EXCEPT
+-- SELECT prescriber.specialty_description
+-- FROM prescription
+-- FULL OUTER JOIN prescriber
+-- 	ON prescription.npi = prescriber.npi
+	
 -- SELECT
 -- 	prescriber.specialty_description,
 -- 	COUNT(prescription.*)
@@ -225,21 +237,38 @@
 -- 	UPPER(p.nppes_provider_city) = 'NASHVILLE' AND
 -- 	d.opioid_drug_flag = 'Y'
 -- GROUP BY 1,2
--- ORDER BY 3 DESC
+-- ORDER BY 3 DESC 
+
+-- UPDATED! 
+-- SELECT 
+-- 	prescriber.npi, 
+-- 	drug.drug_name, 
+-- 	prescription.total_claim_count AS total_claims
+-- FROM prescriber
+-- CROSS JOIN drug
+-- LEFT JOIN prescription
+-- 	ON prescriber.npi = prescription.npi
+-- 	AND drug.drug_name = prescription.drug_name
+-- WHERE prescriber.specialty_description = 'Pain Management'
+-- 	AND prescriber.nppes_provider_city = 'NASHVILLE'
+-- 	AND opioid_drug_flag = 'Y'
+-- ORDER BY 3
+
+
+
 
 --     c. Finally, if you have not done so already, fill in any missing values for total_claim_count with 0. Hint - Google the COALESCE function.
 
--- SELECT
--- 	p.npi,
--- 	d.drug_name,
--- 	COALESCE(SUM(p2.total_claim_count), 0) AS sum_total_claim_count
--- FROM prescriber p
--- CROSS JOIN drug d
--- LEFT JOIN prescription p2
--- 	ON p2.drug_name = d.drug_name
--- WHERE
--- 	p.specialty_description = 'Pain Management' AND
--- 	UPPER(p.nppes_provider_city) = 'NASHVILLE' AND
--- 	d.opioid_drug_flag = 'Y'
--- GROUP BY 1,2
--- ORDER BY 3 DESC
+SELECT 
+	prescriber.npi, 
+	drug.drug_name, 
+	COALESCE(prescription.total_claim_count, 0) AS total_claims
+FROM prescriber
+CROSS JOIN drug
+LEFT JOIN prescription
+	ON prescriber.npi = prescription.npi
+	AND drug.drug_name = prescription.drug_name
+WHERE prescriber.specialty_description = 'Pain Management'
+	AND prescriber.nppes_provider_city = 'NASHVILLE'
+	AND opioid_drug_flag = 'Y'
+ORDER BY 3 DESC
