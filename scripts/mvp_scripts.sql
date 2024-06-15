@@ -29,7 +29,7 @@
 --     a. Which specialty had the most total number of claims (totaled over all drugs)?
 -- SELECT
 -- 	prescriber.specialty_description,
--- 	SUM(prescription.total_claim_count)
+-- 	SUM(prescription.total_claim_count)::MONEY
 -- FROM prescriber
 -- JOIN prescription 
 -- 	ON prescriber.npi = prescription.npi
@@ -39,7 +39,7 @@
 --     b. Which specialty had the most total number of claims for opioids?
 -- SELECT
 -- 	prescriber.specialty_description,
--- 	SUM(prescription.total_claim_count)
+-- 	SUM(prescription.total_claim_count) sum_of_claims
 -- FROM prescriber
 -- JOIN prescription 
 -- 	ON prescriber.npi = prescription.npi 
@@ -51,17 +51,29 @@
 
 --     c. **Challenge Question:** Are there any specialties that appear in the prescriber table that have no associated prescriptions in the prescription table?
 
--- SELECT
--- 	prescriber.specialty_description
+-- SELECT DISTINCT specialty_description
 -- FROM prescriber
--- FULL OUTER JOIN prescription
--- 	ON prescriber.npi = prescription.npi
+-- WHERE specialty_description NOT IN
+-- 	(SELECT prescriber.specialty_description
+-- 	FROM prescription
+-- 	JOIN prescriber  
+-- 	ON prescription.npi = prescriber.npi)
+-- ORDER BY 1 
+
+--Couldn't get this one to work. It does now!!
+-- (SELECT 
+-- 	specialty_description
+-- FROM prescriber
+-- 	LEFT JOIN prescription
+-- 	USING(npi))
 -- EXCEPT
--- SELECT prescriber.specialty_description
+-- (SELECT 
+-- 	specialty_description
 -- FROM prescription
--- FULL OUTER JOIN prescriber
--- 	ON prescription.npi = prescriber.npi
-	
+-- 	LEFT JOIN prescriber
+-- 	USING(npi))
+
+--Original answer. There are so many ways to solve! 
 -- SELECT
 -- 	prescriber.specialty_description,
 -- 	COUNT(prescription.*)
@@ -69,7 +81,8 @@
 -- LEFT JOIN prescription
 -- 	ON prescriber.npi = prescription.npi
 -- GROUP BY 1
--- ORDER BY 2 
+-- HAVING COUNT(prescription.*) = 0
+-- ORDER BY 2
 
 --     d. **Difficult Bonus:** *Do not attempt until you have solved all other problems!* For each specialty, report the percentage of total claims by that specialty which are for opioids. Which specialties have a high percentage of opioids?
 
@@ -87,9 +100,31 @@
 --     ON prescriber.npi = prescription.npi
 -- JOIN drug
 --     ON prescription.drug_name = drug.drug_name
+-- --WHERE opioid_drug_flag = 'Y'
 -- GROUP BY 1, 2
 -- ORDER BY 1, 2
- 
+
+--answer key 
+-- SELECT
+-- 	specialty_description,
+-- 	SUM(
+-- 		CASE WHEN opioid_drug_flag = 'Y' THEN total_claim_count
+-- 		ELSE 0
+-- 	END
+-- 	) as opioid_claims,
+-- 	SUM(total_claim_count) AS total_claims,
+-- 	SUM(
+-- 		CASE WHEN opioid_drug_flag = 'Y' THEN total_claim_count
+-- 		ELSE 0
+-- 	END
+-- 	) * 100.0 /  SUM(total_claim_count) AS opioid_percentage
+-- FROM prescriber
+-- INNER JOIN prescription
+-- USING(npi)
+-- INNER JOIN drug
+-- USING(drug_name)
+-- GROUP BY specialty_description
+-- ORDER BY opioid_percentage DESC;
 
 -- 3. 
 --     a. Which drug (generic_name) had the highest total drug cost?
@@ -103,9 +138,17 @@
 -- ORDER BY 2 DESC
 -- LIMIT 10
 
---     b. Which drug (generic_name) has the hightest total cost per day? **Bonus: Round your cost per day column to 2 decimal places. Google ROUND to see how this works.**
-
--- Can't figure out how to get total cost per day from the ERD???
+--     b. Which drug (generic_name) has the hightest total cost per day? **Bonus: Round your cost per day column to 2 decimal places. Google ROUND to see how this works.*
+-- I can't figure out how to get total cost per day from the ERD???
+--not sure if this is right..
+-- SELECT
+-- 	d.generic_name,
+-- 	SUM(p.total_drug_cost) / SUM(p.total_day_supply) AS drug_cost_per_day
+-- FROM prescription p
+-- JOIN drug d
+-- USING(drug_name)
+-- GROUP BY 1
+-- ORDER BY 2
 
 
 -- 4. 
@@ -139,9 +182,10 @@
 
 -- 5. 
 --     a. How many CBSAs are in Tennessee? **Warning:** The cbsa table contains information for all states, not just Tennessee.
+
 -- SELECT COUNT(*)
 -- FROM cbsa
--- WHERE cbsaname LIKE '%TN%'
+-- WHERE state = 'TN'
 
 --     b. Which cbsa has the largest combined population? Which has the smallest? Report the CBSA name and total population.
 -- SELECT
@@ -153,8 +197,27 @@
 -- GROUP BY 1
 -- ORDER BY SUM(p.population)DESC
 
+-- or this one?? I get confused as to when to use SUM?
+-- SELECT
+-- 	c.cbsaname,
+-- 	MAX(p.population) AS total_population
+-- FROM cbsa c
+-- JOIN population p -- is this population table only for TN?? 
+-- 	ON c.fipscounty = p.fipscounty
+-- GROUP BY 1
+-- ORDER BY 2 DESC
+
+--Need to do SUM because there are multiple population fields for a single cbsaname field. See below. 
+-- SELECT 
+-- 	c.cbsaname,
+-- 	p.population
+-- FROM cbsa c
+-- JOIN population p
+-- ON c.fipscounty = p.fipscounty
+-- ORDER BY 2 DESC
 
 --     c. What is the largest (in terms of population) county which is not included in a CBSA? Report the county name and population.
+
 -- SELECT
 -- 	county,
 -- 	population
@@ -239,7 +302,7 @@
 -- GROUP BY 1,2
 -- ORDER BY 3 DESC 
 
--- UPDATED! 
+--UPDATED! 
 -- SELECT 
 -- 	prescriber.npi, 
 -- 	drug.drug_name, 
@@ -255,20 +318,18 @@
 -- ORDER BY 3
 
 
-
-
 --     c. Finally, if you have not done so already, fill in any missing values for total_claim_count with 0. Hint - Google the COALESCE function.
 
-SELECT 
-	prescriber.npi, 
-	drug.drug_name, 
-	COALESCE(prescription.total_claim_count, 0) AS total_claims
-FROM prescriber
-CROSS JOIN drug
-LEFT JOIN prescription
-	ON prescriber.npi = prescription.npi
-	AND drug.drug_name = prescription.drug_name
-WHERE prescriber.specialty_description = 'Pain Management'
-	AND prescriber.nppes_provider_city = 'NASHVILLE'
-	AND opioid_drug_flag = 'Y'
-ORDER BY 3 DESC
+-- SELECT 
+-- 	prescriber.npi, 
+-- 	drug.drug_name, 
+-- 	COALESCE(prescription.total_claim_count, 0) AS total_claims
+-- FROM prescriber
+-- CROSS JOIN drug
+-- LEFT JOIN prescription
+-- 	ON prescriber.npi = prescription.npi
+-- 	AND drug.drug_name = prescription.drug_name
+-- WHERE prescriber.specialty_description = 'Pain Management'
+-- 	AND prescriber.nppes_provider_city = 'NASHVILLE'
+-- 	AND opioid_drug_flag = 'Y'
+-- ORDER BY 3 DESC
